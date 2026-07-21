@@ -10,9 +10,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Any
+
+# Ensure project root is in sys.path when script is executed directly
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.graph.service import GraphService
 from app.utils.logging import setup_logging
