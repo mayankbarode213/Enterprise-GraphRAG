@@ -1,0 +1,22 @@
+id,type,name,plant,production_line,country,rating,part_number,material,qc_status,production_date,quantity,specialty,commissioned,shift,experience_years,severity,maintenance_type,date,notes
+PL_SUV_01,ProductionLine,SUV Final Assembly Line,Chakan Plant,,,,,,,,,,,,,,
+MACH_RW101,Machine,Robotic Welding Cell RW-101,Chakan Plant,PL_SUV_01,,,,,,,,2021-02-15,,,,,,
+MACH_HP201,Machine,Hydraulic Press HP-201,Chakan Plant,PL_SUV_01,,,,,,,,2020-06-18,,,,,,
+MACH_EA301,Machine,Engine Assembly Station EA-301,Chakan Plant,PL_SUV_01,,,,,,,,2019-11-01,,,,,,
+COMP_HYD_SEAL,Component,Hydraulic Pressure Seal,,,,HS-501,Nitrile Rubber,,,,,,,,,,
+COMP_SERVO,Component,Servo Motor SM-200,,,,SM-200,Alloy Steel,,,,,,,,,,
+COMP_PLC,Component,PLC Control Board,,,,PLC-900,PCB,,,,,,,,,,
+SUP_BPC,Supplier,Bharat Precision Components Pvt. Ltd.,,,India,4.8,,,,,,,,,,,
+SUP_SHAKTI,Supplier,Shakti Industrial Seals Pvt. Ltd.,,,India,3.7,,,,,,,,,,,
+SUP_WMS,Supplier,Western Motion Systems Pvt. Ltd.,,,India,4.6,,,,,,,,,,,
+BAT_HS_2026_001,Batch,Hydraulic Seal Batch 2026-001,,,,,,,FAILED,2026-01-15,1200,,,,,,,
+BAT_HS_2026_002,Batch,Hydraulic Seal Batch 2026-002,,,,,,,PASSED,2026-03-02,1500,,,,,,,
+BAT_SM_2026_001,Batch,Servo Motor Batch 2026-001,,,,,,,PASSED,2026-02-10,500,,,,,,,
+VEN_APEX,Vendor,Apex Industrial Services Pvt. Ltd.,,,India,,,,,,,Industrial Maintenance,,,,,
+OPR_RAJESH,Operator,Rajesh Patil,Chakan Plant,,,,,,,,,,Morning,9,,,,
+OPR_AMIT,Operator,Amit Deshmukh,Chakan Plant,,,,,,,,,,Evening,6,,,,
+MNT_RW101_001,Maintenance,Preventive Maintenance RW101,Chakan Plant,,,,,,,,,,,,Scheduled,2026-02-05,Bearing inspection
+MNT_RW101_002,Maintenance,Emergency Maintenance RW101,Chakan Plant,,,,,,,,,,,,Emergency,2026-05-12,Hydraulic pressure loss
+INC_RW101_001,Incident,Hydraulic Pressure Loss,,,,,,,,,,,,,,Critical,,2026-05-10,
+DEF_HYD_LEAK,Defect,Hydraulic Seal Leakage,,,,,,,,,,,,,,Critical,,2026-05-10,
+DEF_DIMENSION,Defect,Seal Dimensional Failure,,,,,,,,,,,,,,High,,2026-05-10,

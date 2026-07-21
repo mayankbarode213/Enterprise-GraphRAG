@@ -1,0 +1,35 @@
+MAINTENANCE WORK ORDER
+
+Maintenance ID:
+MNT_RW101_001
+
+Machine:
+Robotic Welding Cell RW-101
+
+Date:
+5 February 2026
+
+Maintenance Type:
+Preventive
+
+Vendor:
+Apex Industrial Services Pvt. Ltd.
+
+Activities Performed
+--------------------
+
+Hydraulic pressure inspection
+
+Servo motor calibration
+
+Lubrication completed
+
+PLC diagnostics completed
+
+Machine alignment verified
+
+Completion Status
+
+Machine released for production.
+
+No abnormalities detected.

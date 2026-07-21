@@ -1,0 +1,48 @@
+DEFECT REGISTER
+
+Defect ID:
+DEF_HYD_LEAK
+
+Date:
+10 May 2026
+
+Machine:
+Robotic Welding Cell RW-101
+
+Affected Component:
+Hydraulic Pressure Seal
+
+Severity:
+Critical
+
+Status:
+Closed
+
+Corrective Action
+-----------------
+Seal replaced.
+Machine validated.
+
+----------------------------------------
+
+Defect ID:
+DEF_DIMENSION
+
+Date:
+10 May 2026
+
+Machine:
+Robotic Welding Cell RW-101
+
+Affected Component:
+Hydraulic Pressure Seal
+
+Severity:
+High
+
+Status:
+Closed
+
+Corrective Action
+-----------------
+Dimensional verification completed.

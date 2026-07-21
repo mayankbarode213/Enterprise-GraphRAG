@@ -1,0 +1,38 @@
+PRODUCTION LINE REPORT
+
+Production Line:
+SUV Final Assembly Line
+
+Plant:
+Chakan Manufacturing Plant
+
+Date:
+10 May 2026
+
+Overall Equipment Effectiveness
+-------------------------------
+91.8%
+
+Production Output
+-----------------
+Scheduled:
+520 Vehicles
+
+Produced:
+478 Vehicles
+
+Major Downtime
+--------------
+Robotic Welding Cell RW-101
+
+Downtime Duration
+-----------------
+3.5 Hours
+
+Reason
+------
+Hydraulic pressure failure
+
+Status
+------
+Recovered

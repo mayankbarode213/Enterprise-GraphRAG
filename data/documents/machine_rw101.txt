@@ -1,0 +1,40 @@
+MACHINE PROFILE
+
+Machine ID:
+MACH_RW101
+
+Machine Name:
+Robotic Welding Cell RW-101
+
+Plant:
+Chakan Manufacturing Plant
+
+Production Line:
+SUV Final Assembly Line
+
+Commissioned:
+15 February 2021
+
+Installed Components
+--------------------
+
+Hydraulic Pressure Seal
+
+Servo Motor
+
+PLC Control Board
+
+Maintenance Schedule
+--------------------
+
+Preventive Maintenance
+
+Quarterly
+
+Emergency Maintenance
+
+Condition Based
+
+Current Status
+
+Operational

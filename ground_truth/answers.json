@@ -1,0 +1,122 @@
+{
+  "version": "1.0",
+  "domain": "Manufacturing Defect Analysis",
+  "breaking_point_query": {
+    "id": "Q001",
+    "question": "Which supplier batches indirectly caused all defects reported after Robotic Welding Cell RW-101's maintenance performed by Apex Industrial Services Pvt. Ltd.?",
+    "required_hops": 5,
+    "hop_chain": "Supplier → Batch → Component → Machine → Maintenance → Vendor → Incident → Defect",
+    "expected_answer": {
+      "supplier_batches": [
+        {
+          "batch_id": "BAT_HS_2026_001",
+          "batch_name": "Hydraulic Seal Batch 2026-001",
+          "supplier": "Shakti Industrial Seals Pvt. Ltd.",
+          "supplier_id": "SUP_SHAKTI",
+          "component": "Hydraulic Pressure Seal",
+          "component_id": "COMP_HYD_SEAL",
+          "machine": "Robotic Welding Cell RW-101",
+          "machine_id": "MACH_RW101",
+          "maintenance_event": "MNT_RW101_002",
+          "vendor": "Apex Industrial Services Pvt. Ltd.",
+          "vendor_id": "VEN_APEX",
+          "defects_caused": [
+            "DEF_HYD_LEAK",
+            "DEF_DIMENSION"
+          ],
+          "defect_descriptions": [
+            "Hydraulic Seal Leakage (critical)",
+            "Seal Dimensional Failure (high)"
+          ]
+        }
+      ],
+      "reasoning_chain": "Shakti Industrial Seals Pvt. Ltd. supplied Batch BAT_HS_2026_001 (Hydraulic Seal Batch 2026-001) which manufactured Hydraulic Pressure Seal (COMP_HYD_SEAL). This component was installed on Robotic Welding Cell RW-101 (MACH_RW101). The machine then underwent emergency maintenance MNT_RW101_002 performed by Apex Industrial Services Pvt. Ltd. (VEN_APEX). This maintenance event was triggered by Incident INC_RW101_001, which was subsequently reported as defects DEF_HYD_LEAK (hydraulic seal leakage, critical) and DEF_DIMENSION (seal dimensional failure, high).",
+      "note": "Preventive maintenance MNT_RW101_001 occurred on 2026-02-05 and was performed by Apex Industrial Services Pvt. Ltd., but did not link to any defects since it pre-dated the hydraulic pressure loss incident on 2026-05-10."
+    }
+  },
+  "supporting_queries": [
+    {
+      "id": "Q002",
+      "question": "Which machines underwent maintenance by Apex Industrial Services Pvt. Ltd. in 2026?",
+      "expected_answer": {
+        "machines": [
+          "Robotic Welding Cell RW-101 (MACH_RW101)"
+        ],
+        "maintenance_events": [
+          "MNT_RW101_001 (Feb 2026)",
+          "MNT_RW101_002 (May 2026)"
+        ]
+      }
+    },
+    {
+      "id": "Q003",
+      "question": "What defects are linked to components from Shakti Industrial Seals Pvt. Ltd.?",
+      "expected_answer": {
+        "defects": [
+          "DEF_HYD_LEAK",
+          "DEF_DIMENSION"
+        ],
+        "batches": [
+          "BAT_HS_2026_001"
+        ],
+        "components": [
+          "Hydraulic Pressure Seal (COMP_HYD_SEAL)"
+        ]
+      }
+    },
+    {
+      "id": "Q004",
+      "question": "Which batches failed quality control inspection?",
+      "expected_answer": {
+        "failed_batches": [
+          {
+            "batch_id": "BAT_HS_2026_001",
+            "batch_name": "Hydraulic Seal Batch 2026-001",
+            "supplier": "Shakti Industrial Seals Pvt. Ltd.",
+            "failure_mode": "FAILED"
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q005",
+      "question": "What is the full causal chain from supplier to defect for the critical seal failure?",
+      "expected_answer": {
+        "chain": "Shakti Industrial Seals Pvt. Ltd. (SUP_SHAKTI) → Batch BAT_HS_2026_001 → Hydraulic Pressure Seal (COMP_HYD_SEAL) → Robotic Welding Cell RW-101 (MACH_RW101) → Maintenance MNT_RW101_002 → Apex Industrial Services Pvt. Ltd. (VEN_APEX) → Incident INC_RW101_001 → Defect DEF_HYD_LEAK + DEF_DIMENSION"
+      }
+    },
+    {
+      "id": "Q006",
+      "intent": "supplier_risk_exposure",
+      "hops": 8,
+      "hop_chain": "Defect → CAUSED_BY_BATCH → Batch_A ← SUPPLIED_BATCH ← Supplier → SUPPLIED_BATCH → ALL Batches → MANUFACTURED_AS → Components → INSTALLED_ON → Machines → UNDERWENT → Maintenance → PERFORMED_BY → Vendor / Incidents",
+      "question": "Starting from the defect 'Hydraulic Seal Leakage', trace back to the originating supplier and identify all other batches from the same supplier currently installed on production machines, their QC status, and any associated incidents — to determine which machines remain at ongoing production risk",
+      "expected_answer": {
+        "root_defect": "Hydraulic Seal Leakage (DEF_HYD_LEAK, Critical)",
+        "defective_batch": "Hydraulic Seal Batch 2026-001 (BAT_HS_2026_001, FAILED QC)",
+        "originating_supplier": "Shakti Industrial Seals Pvt. Ltd. (SUP_SHAKTI, Rating: 3.7/5, SCAR Open)",
+        "all_supplier_batches": [
+          {
+            "batch_id": "BAT_HS_2026_001",
+            "batch_name": "Hydraulic Seal Batch 2026-001",
+            "qc_status": "FAILED",
+            "component": "Hydraulic Pressure Seal (COMP_HYD_SEAL)",
+            "machine": "Robotic Welding Cell RW-101 (MACH_RW101)",
+            "risk_status": "DEFECTIVE — caused DEF_HYD_LEAK + DEF_DIMENSION"
+          },
+          {
+            "batch_id": "BAT_HS_2026_002",
+            "batch_name": "Hydraulic Seal Batch 2026-002",
+            "qc_status": "PASSED",
+            "component": "Hydraulic Pressure Seal (COMP_HYD_SEAL)",
+            "machine": "Robotic Welding Cell RW-101 (MACH_RW101)",
+            "risk_status": "AT RISK — same supplier with open SCAR, still installed on production machine"
+          }
+        ],
+        "machines_at_risk": ["Robotic Welding Cell RW-101 (MACH_RW101)"],
+        "key_insight": "Even after the defective batch BAT_HS_2026_001 was remediated, BAT_HS_2026_002 from the same at-risk supplier (Shakti — SCAR Open, Rating 3.7/5) is still installed on the same machine. No single document contains this cross-batch risk linkage. Only graph traversal reveals this ongoing exposure.",
+        "why_vector_fails": "No document connects 'Hydraulic Seal Leakage' back to Shakti, nor lists all batches from Shakti, nor shows BAT_HS_2026_002 is from the same supplier and still installed on RW-101. The CAUSED_BY_BATCH and SUPPLIED_BATCH graph edges are the only source of truth for this 8-hop chain."
+      }
+    }
+  ]
+}

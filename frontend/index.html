@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Enterprise GraphRAG Playground - Compare GraphRAG vs VectorRAG for multi-hop manufacturing queries.">
+    <title>Enterprise GraphRAG Playground</title>
+    <!-- Modern Premium Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/index.css?v=8">
+
+    <!-- Marked.js for Markdown Rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Main Top Navigation -->
+        <header class="app-header">
+            <div class="logo">
+                <span class="logo-accent">Enterprise</span> GraphRAG Hub
+            </div>
+            <div class="header-center">
+                <div class="mode-selector">
+                    <span class="mode-label">Mode</span>
+                    <div class="mode-options">
+                        <label class="mode-option">
+                            <input type="radio" name="search-mode" value="auto" checked>
+                            <span class="mode-pill">Auto Router</span>
+                        </label>
+                        <label class="mode-option">
+                            <input type="radio" name="search-mode" value="graph">
+                            <span class="mode-pill">GraphRAG Only</span>
+                        </label>
+                        <label class="mode-option">
+                            <input type="radio" name="search-mode" value="vector">
+                            <span class="mode-pill">VectorRAG Only</span>
+                        </label>
+                        <label class="mode-option">
+                            <input type="radio" name="search-mode" value="compare">
+                            <span class="mode-pill">Compare Both ⭐</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="t2c-selector" style="margin-left: 12px; display: inline-flex; align-items: center;">
+                    <label class="t2c-option" style="cursor: pointer; display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.06); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.12); font-size: 0.82rem; color: var(--text-muted, #94a3b8); transition: all 0.2s;" title="Enable Dynamic Text-to-Cypher LLM Query Generation">
+                        <input type="checkbox" id="t2c-checkbox" style="accent-color: #6366f1; cursor: pointer;">
+                        <span>⚡ Text-to-Cypher</span>
+                    </label>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="header-status">
+                    <span class="status-indicator-dot green"></span>
+                    <span class="status-text">Neo4j &amp; Vector Active</span>
+                </div>
+                <span class="badge" id="telemetry-badge">Idle</span>
+            </div>
+        </header>
+
+        <!-- Main Layout: Chat (primary) + Telemetry Strip (below) -->
+        <main class="app-main">
+
+            <!-- Primary: Chat Portal -->
+            <section class="panel panel-chat" id="panel-chat">
+                <div class="panel-header">
+                    <h2>Assistant Chat</h2>
+                    <div class="quick-suggest">
+                        <button
+                            onclick="suggestQuery('Which supplier batches indirectly caused all defects reported after Robotic Welding Cell RW-101\'s maintenance performed by Apex Industrial Services Pvt. Ltd.?')">💥
+                            Breaking Point (6-hop)</button>
+                        <button
+                            onclick="suggestQuery('Starting from the defect Hydraulic Seal Leakage, trace back to the originating supplier and identify all other batches from the same supplier currently installed on production machines, their QC status, and any associated incidents — to determine which machines remain at ongoing production risk')"
+                            title="8-hop breaking point — VectorRAG structurally cannot trace defect → supplier → all other batches → machines at risk">🔴
+                            Breaking Point (8-hop)</button>
+                    </div>
+                </div>
+
+                <div class="chat-conversation" id="chat-conversation">
+                    <div class="chat-message assistant">
+                        <div class="message-bubble">
+                            Welcome to the **Enterprise GraphRAG Assistant**. Ask me any multi-hop manufacturing
+                            question or use **Compare Both** to see how GraphRAG beats VectorRAG on complex queries.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <form id="chat-form" onsubmit="submitQuery(event)">
+                        <input type="text" id="query-input"
+                            placeholder="Ask a question — e.g. Which vendor serviced the defective machine? (multi-hop)"
+                            required
+                            autocomplete="off">
+                        <button type="submit" id="submit-btn">
+                            <span>Send</span>
+                            <svg class="send-icon" viewBox="0 0 24 24">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Secondary: Compact Observability Strip -->
+            <section class="panel panel-telemetry" id="panel-telemetry">
+                <!-- Compact strip (always visible) -->
+                <div class="telemetry-strip">
+                    <!-- Router Decision -->
+                    <div class="strip-block strip-router">
+                        <span class="strip-block-label">Router</span>
+                        <div class="strip-routing-visual">
+                            <div class="route-chip graph" id="route-graph">
+                                <div class="chip-glow"></div>
+                                <span class="chip-label">Graph RAG</span>
+                            </div>
+                            <div class="chip-connector">
+                                <div class="pulse-ball" id="pulse-ball"></div>
+                            </div>
+                            <div class="route-chip vector" id="route-vector">
+                                <div class="chip-glow"></div>
+                                <span class="chip-label">Vector RAG</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats Row -->
+                    <div class="strip-block strip-stats">
+                        <div class="strip-stat">
+                            <span class="strip-stat-label">Confidence</span>
+                            <span class="strip-stat-val" id="stat-confidence">—</span>
+                        </div>
+                        <div class="strip-stat">
+                            <span class="strip-stat-label">Latency</span>
+                            <span class="strip-stat-val" id="stat-latency">—</span>
+                        </div>
+                        <div class="strip-stat">
+                            <span class="strip-stat-label">Tokens</span>
+                            <span class="strip-stat-val" id="stat-tokens">—</span>
+                        </div>
+                        <div class="strip-stat">
+                            <span class="strip-stat-label">Depth</span>
+                            <span class="strip-stat-val" id="stat-depth">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Intent / Entity -->
+                    <div class="strip-block strip-intent">
+                        <div class="strip-detail-row">
+                            <span class="strip-detail-label">Intent</span>
+                            <span class="strip-detail-val" id="detail-intent">—</span>
+                        </div>
+                        <div class="strip-detail-row">
+                            <span class="strip-detail-label">Entity</span>
+                            <span class="strip-detail-val" id="detail-entity">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Expand Toggle -->
+                    <button class="strip-expand-btn" id="strip-expand-btn" onclick="toggleTelemetryDetails()" title="Toggle details">
+                        <svg viewBox="0 0 24 24" class="expand-icon" id="expand-icon">
+                            <path d="M7 14l5-5 5 5z"/>
+                        </svg>
+                        <span>Details</span>
+                    </button>
+                </div>
+
+                <!-- Expandable Details Panel -->
+                <div class="telemetry-details" id="telemetry-details">
+                    <div class="telemetry-details-inner">
+                        <!-- Routing Details Text -->
+                        <div class="detail-card routing-detail-card">
+                            <span class="detail-card-title">Routing Decision</span>
+                            <div class="routing-details" id="routing-details">
+                                Select a mode and run a query to see routing confidence logic.
+                            </div>
+                        </div>
+
+                        <!-- Cypher Query Block -->
+                        <div class="code-container" id="code-container" style="display: none;">
+                            <div class="code-header">
+                                <span>Executed Cypher Query</span>
+                                <button class="copy-btn" onclick="copyCode()">Copy</button>
+                            </div>
+                            <pre><code id="cypher-block"></code></pre>
+                        </div>
+
+                        <!-- ReAct Steps Stepper -->
+                        <div class="react-stepper">
+                            <div class="card-title">ReAct Execution Trace</div>
+                            <div class="stepper-steps" id="stepper-steps">
+                                <div class="stepper-placeholder">
+                                    Waiting for query execution logs to arrive...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+    <script src="/static/index.js?v=10"></script>
+</body>
+
+</html>

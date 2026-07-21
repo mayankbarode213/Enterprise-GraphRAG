@@ -1,0 +1,45 @@
+SUPPLIER PROFILE
+
+Supplier ID:
+SUP_SHAKTI
+
+Company:
+Shakti Industrial Seals Pvt. Ltd.
+
+Location:
+Pune, Maharashtra
+
+Supplier Category:
+Hydraulic Sealing Components
+
+Supplier Rating:
+3.7 / 5
+
+Approved Products
+-----------------
+
+Hydraulic Pressure Seal HS-501
+
+Recent Deliveries
+-----------------
+
+Batch:
+BAT_HS_2026_001
+
+Delivery Date:
+15 January 2026
+
+Batch:
+BAT_HS_2026_002
+
+Delivery Date:
+2 March 2026
+
+Performance Notes
+-----------------
+
+Supplier currently under enhanced quality monitoring following repeated dimensional deviations observed during incoming inspections.
+
+Current Status
+
+SCAR Open

@@ -1,0 +1,36 @@
+INCIDENT REPORT
+
+Incident ID:
+INC_RW101_001
+
+Reported On:
+10 May 2026
+
+Reported By:
+Rajesh Patil
+
+Machine:
+Robotic Welding Cell RW-101
+
+Severity:
+Critical
+
+Incident Description
+--------------------
+During the morning production shift, operators observed a sudden hydraulic pressure drop in Robotic Welding Cell RW-101. Welding quality became inconsistent, resulting in automatic production stoppage.
+
+Immediate Actions
+-----------------
+• Machine stopped.
+• Production line isolated.
+• Maintenance team notified.
+• Emergency work order initiated.
+
+Business Impact
+---------------
+• Production downtime: 3.5 hours
+• Vehicles delayed: 42
+
+Investigation Status
+--------------------
+Incident forwarded to Quality Assurance for detailed analysis.

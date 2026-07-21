@@ -1,0 +1,37 @@
+SUPPLIER PROFILE
+
+Supplier ID: SUP_BPC
+Company Name: Bharat Precision Components Pvt. Ltd.
+Location: Aurangabad, Maharashtra
+Supplier Category: Precision Mechanical Components
+Supplier Rating: 4.8 / 5
+Status: Approved
+
+Company Overview
+----------------
+Bharat Precision Components Pvt. Ltd. has supplied precision automotive
+components to Bharat Auto Manufacturing Ltd. since 2022.
+
+Current Supply Contracts
+------------------------
+• Servo Motor Assemblies
+• Precision Bearing Kits
+
+Recent Deliveries
+-----------------
+Batch:
+BAT_SM_2026_001
+
+Delivery Date:
+10 February 2026
+
+Incoming Inspection:
+PASSED
+
+Performance Summary
+-------------------
+On-time delivery:
+98%
+
+Supplier Corrective Actions:
+None

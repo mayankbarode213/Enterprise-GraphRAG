@@ -1,0 +1,36 @@
+MAINTENANCE WORK ORDER
+
+Maintenance ID:
+MNT_RW101_002
+
+Machine:
+Robotic Welding Cell RW-101
+
+Date:
+12 May 2026
+
+Maintenance Type:
+Emergency
+
+Vendor:
+Apex Industrial Services Pvt. Ltd.
+
+Reason
+
+Hydraulic pressure loss.
+
+Activities
+
+Hydraulic seal replaced.
+
+Hydraulic circuit cleaned.
+
+Pressure tested.
+
+Machine recommissioned.
+
+Maintenance Result
+
+Machine restored to production.
+
+Root cause investigation assigned to Quality Assurance.

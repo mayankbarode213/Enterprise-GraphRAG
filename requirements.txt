@@ -1,0 +1,68 @@
+# # ── Core LLM / Agent ──────────────────────────────────────────────────────────
+# # Using langchain 0.3.x: supports numpy>=2.0 (pre-built wheels for Python 3.13 on Windows)
+# openai>=1.35.0,<2.0.0
+# langchain>=0.3.0,<0.4.0
+# langchain-openai>=0.2.0,<0.3.0
+# langchain-community>=0.3.0,<0.4.0
+# langgraph>=0.2.0,<0.3.0
+
+# # ── Graph ─────────────────────────────────────────────────────────────────────
+# neo4j>=5.20.0,<6.0.0
+
+# # ── Vector Store ──────────────────────────────────────────────────────────────
+# # faiss-cpu has pre-built Python 3.13 Windows wheels (no C++ compiler needed)
+# # Assignment spec explicitly mentions FAISS as an option
+# faiss-cpu>=1.9.0
+# numpy>=2.0.0
+
+# # ── Schema / Config ───────────────────────────────────────────────────────────
+# pydantic>=2.8.0,<3.0.0
+# pydantic-settings>=2.3.0,<3.0.0
+
+# # ── Utilities ─────────────────────────────────────────────────────────────────
+# python-dotenv>=1.0.0
+# tiktoken>=0.7.0
+# rich>=13.7.0
+# tenacity>=8.5.0
+# httpx>=0.27.0,<1.0.0
+
+# # ── Testing ───────────────────────────────────────────────────────────────────
+# pytest>=8.3.0
+# pytest-asyncio>=0.23.0
+# pytest-mock>=3.14.0
+
+# fastapi
+
+
+
+
+
+openai==1.99.9
+
+langchain==0.3.30
+langchain-community==0.3.29
+langchain-core==0.3.85
+langchain-openai==0.2.14
+langchain-text-splitters==0.3.9
+langgraph==0.2.76
+
+neo4j>=5.20
+
+faiss-cpu>=1.9
+numpy>=2.0
+
+pydantic>=2.8
+pydantic-settings>=2.3
+
+python-dotenv
+tiktoken
+rich
+tenacity
+httpx
+
+pytest
+pytest-asyncio
+pytest-mock
+
+fastapi
+uvicorn

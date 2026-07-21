@@ -1,0 +1,33 @@
+MACHINE INVENTORY
+
+Machine:
+Robotic Welding Cell RW-101
+
+Installed Components
+--------------------
+
+Hydraulic Pressure Seal
+
+Servo Motor
+
+PLC Control Board
+
+Machine:
+Hydraulic Press HP-201
+
+Installed Components
+--------------------
+
+Hydraulic Pressure Seal
+
+Servo Motor
+
+Machine:
+Engine Assembly Station EA-301
+
+Installed Components
+--------------------
+
+Servo Motor
+
+PLC Control Board

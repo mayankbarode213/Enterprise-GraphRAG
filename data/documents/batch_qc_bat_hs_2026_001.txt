@@ -1,0 +1,37 @@
+QUALITY CONTROL REPORT
+
+Batch ID:
+BAT_HS_2026_001
+
+Supplier:
+Shakti Industrial Seals Pvt. Ltd.
+
+Component:
+Hydraulic Pressure Seal HS-501
+
+Inspection Date:
+16 January 2026
+
+Inspection Summary
+------------------
+Incoming dimensional inspection identified variation in seal thickness exceeding engineering tolerance.
+
+Measured Thickness
+------------------
+Specification:
+12.00 ±0.05 mm
+
+Observed:
+11.91 mm
+
+Inspection Result
+-----------------
+FAILED
+
+Corrective Action
+-----------------
+Supplier requested to perform root cause analysis.
+
+Current Status
+--------------
+Supplier Corrective Action Request (SCAR) Open.

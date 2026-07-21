@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+.venv/
+.venv
+venv/
+env/
+
+# Environment variables (NEVER commit these)
+.env
+# FAISS vector store (generated at runtime by ingest_vectors.py)
+vector_store/
+
+# Logs
+logs/
+*.log
+*.jsonl
+
+# Neo4j local data (if not using Docker volumes)
+neo4j_data/
+
+scratch_tests/
+# Evaluation results (generated at runtime)
+evaluation/results/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# MyPy
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+approach.txt
+
+# Scratch and temporary scripts
+scratch_*.py
+scratch_test_*.py
+github_push_commands.txt
+*.tmp
+data/old_documents/
