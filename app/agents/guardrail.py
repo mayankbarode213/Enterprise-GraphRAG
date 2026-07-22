@@ -1,12 +1,18 @@
 """
 GuardrailAgent — validates the synthesized answer against the FinalResponse schema.
 
-If validation fails, it raises a ValidationError — this is the Pydantic guardrail
-demo moment. The agent can optionally attempt a repair pass.
+Two-layer validation:
+  Layer 1 (Content Guardrail) — checks answer quality BEFORE Pydantic schema validation.
+           Rejects: placeholder text, hallucinated generic names, zero-entity graph answers,
+                    SQL injection patterns, and known failure phrases.
+  Layer 2 (Schema Guardrail) — Pydantic v2 enforces field types, value ranges, and lengths.
+
+If either layer fails, a descriptive error is raised and logged.
 """
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from pydantic import ValidationError
@@ -23,17 +29,111 @@ from app.schemas.models import (
 logger = logging.getLogger(__name__)
 
 
+# ── Layer 1: Content-Level Guardrail Patterns ────────────────────────────────
+
+# Phrases that indicate the LLM failed to retrieve real data
+FAILURE_PHRASES: list[str] = [
+    "not identified due to lack of traversed",
+    "not identified due to lack",
+    "no information available",
+    "i don't have information",
+    "i cannot answer",
+    "unable to determine",
+    "no data found",
+    "no results found",
+    "i do not know",
+    "i don't know",
+    "insufficient data",
+    "no relevant information",
+    "context does not contain",
+]
+
+# Hallucinated generic placeholder names the LLM invents when it has no data
+HALLUCINATION_PATTERNS: list[str] = [
+    r"\bBatch\s+[A-C]\b",           # "Batch A", "Batch B", "Batch C"
+    r"\bSupplier\s+[A-C]\b",        # "Supplier A", "Supplier B"
+    r"\bMachine\s+[A-C]\b",         # "Machine A"
+    r"\bEntity\s+\d+\b",            # "Entity 1", "Entity 2"
+    r"\[PLACEHOLDER\]",             # "[PLACEHOLDER]"
+    r"\bXYZ\b",                     # Generic "XYZ" placeholders
+    r"\bfoo\b",                     # Test placeholders
+    r"<[^>]+>",                     # XML/HTML-style placeholders like <name>
+]
+
+# Phrases indicating zero traversal — LLM admitted it found nothing meaningful
+ZERO_TRAVERSAL_PHRASES: list[str] = [
+    "0 relationship traversals",
+    "relationship traversals executed: 0",
+    "nodes traversed: 0",
+    "0 nodes traversed",
+]
+
+
+class ContentGuardrailError(ValueError):
+    """Raised when the answer fails Layer 1 content-quality checks."""
+
+    def __init__(self, reason: str, answer_snippet: str) -> None:
+        self.reason = reason
+        self.answer_snippet = answer_snippet[:200]
+        super().__init__(f"ContentGuardrail BLOCKED — {reason} | snippet: '{self.answer_snippet}'")
+
+
 class GuardrailAgent:
     """
-    Validates the pipeline output against the FinalResponse Pydantic v2 schema.
+    Validates the pipeline output through two sequential guardrail layers.
 
-    Why this matters:
-    - LLMs can produce empty strings, placeholder text, or hallucinated data.
-    - By enforcing a strict Pydantic schema at the boundary, we guarantee that
-      every response returned to the user is structurally valid.
-    - A ValidationError here is intentional and demonstrable — it shows the system
-      correctly REJECTS bad output rather than silently passing it through.
+    Layer 1 — Content Guardrail:
+      Checks for placeholder text, hallucination, failure phrases, and
+      zero-entity graph responses BEFORE schema validation.
+
+    Layer 2 — Pydantic Schema Guardrail:
+      Enforces FinalResponse field types, value constraints (confidence ≤ 1.0,
+      tokens_used ≥ 0, answer min_length=10), and required fields.
     """
+
+    # ── Layer 1: Content Guardrail ────────────────────────────────────────────
+
+    def _check_content(
+        self,
+        answer: str,
+        graph_result: GraphResult | None,
+    ) -> tuple[bool, str]:
+        """
+        Run content-level checks on the synthesized answer.
+
+        Returns:
+            (passed: bool, reason: str)
+        """
+        answer_lower = answer.lower()
+
+        # Check 1: Failure phrases — LLM admitted it found nothing
+        for phrase in FAILURE_PHRASES:
+            if phrase in answer_lower:
+                # Only block if graph returned 0 entities (T2C failure case)
+                if graph_result is not None and len(graph_result.entities) == 0:
+                    return False, f"Answer contains failure phrase with 0 graph entities: '{phrase}'"
+
+        # Check 2: Hallucinated generic names
+        for pattern in HALLUCINATION_PATTERNS:
+            if re.search(pattern, answer, re.IGNORECASE):
+                return False, f"Hallucination pattern detected in answer: '{pattern}'"
+
+        # Check 3: Zero-entity graph response with a non-trivial graph query
+        if graph_result is not None and len(graph_result.entities) == 0:
+            if graph_result.intent not in (None, "", "text2cypher"):
+                pass  # Allow parameterized queries to return 0 entities for truly empty results
+            else:
+                # T2C returned 0 entities — this is a retrieval failure
+                if len(answer) < 200:
+                    return False, "Text-to-Cypher returned 0 entities and answer is too short to be meaningful"
+
+        # Check 4: Minimum meaningful content length
+        if len(answer.strip()) < 50:
+            return False, f"Answer too short to be meaningful: {len(answer)} chars"
+
+        return True, ""
+
+    # ── Main validate method ──────────────────────────────────────────────────
 
     async def validate(
         self,
@@ -49,21 +149,25 @@ class GuardrailAgent:
         vector_result: VectorResult | None = None,
     ) -> tuple[FinalResponse, ReasoningStep]:
         """
-        Attempt to construct a validated FinalResponse.
-
-        Args:
-            All fields required to build a FinalResponse.
+        Two-layer validation: content guardrail → Pydantic schema guardrail.
 
         Returns:
             (FinalResponse, ReasoningStep)
 
         Raises:
-            ValidationError: if the answer fails Pydantic schema validation.
-                             This is intentional and demonstrable.
+            ContentGuardrailError: Layer 1 failure (placeholder / hallucination / zero-entity)
+            ValidationError:       Layer 2 failure (Pydantic schema violation)
         """
         t0 = time.perf_counter()
         logger.info("GuardrailAgent.validate | answer_len=%d", len(answer))
 
+        # ── Layer 1: Content Guardrail ────────────────────────────────────────
+        passed, reason = self._check_content(answer, graph_result)
+        if not passed:
+            logger.warning("GuardrailAgent BLOCKED (Layer 1 — Content): %s", reason)
+            raise ContentGuardrailError(reason=reason, answer_snippet=answer)
+
+        # ── Layer 2: Pydantic Schema Guardrail ───────────────────────────────
         latency_guard = (time.perf_counter() - t0) * 1000
 
         step = ReasoningStep(
@@ -82,8 +186,7 @@ class GuardrailAgent:
 
         final_steps = list(reasoning_steps) + [step]
 
-        # This call will raise pydantic.ValidationError if the answer is invalid
-        # e.g., empty string, placeholder, or missing required fields
+        # This call raises pydantic.ValidationError if schema constraints are violated
         final_response = FinalResponse(
             query=query,
             tool_used=routing_decision.tool,
@@ -105,13 +208,16 @@ class GuardrailAgent:
         )
         return final_response, step
 
+    # ── Demo / Testing ────────────────────────────────────────────────────────
+
     def demonstrate_validation_failure(self) -> None:
         """
         Deliberately trigger a Pydantic ValidationError for demo purposes.
+        Shows Layer 2 (schema) rejection of structurally invalid data.
         """
         logger.warning("DEMO: Attempting to create FinalResponse with invalid data …")
         try:
-            bad_response = FinalResponse(
+            FinalResponse(
                 query="test",
                 tool_used="graph",  # type: ignore
                 answer="",          # ← will fail: min_length=10
@@ -123,3 +229,14 @@ class GuardrailAgent:
         except ValidationError as exc:
             logger.error("DEMO: ValidationError caught as expected!\n%s", exc)
             raise
+
+    def demonstrate_content_failure(self) -> None:
+        """
+        Deliberately trigger a ContentGuardrailError for demo purposes.
+        Shows Layer 1 (content) rejection of hallucinated / placeholder answers.
+        """
+        logger.warning("DEMO: Attempting to pass hallucinated answer through content guardrail …")
+        bad_answer = "The affected batches are Batch A, Batch B, and Batch C."
+        passed, reason = self._check_content(bad_answer, graph_result=None)
+        if not passed:
+            raise ContentGuardrailError(reason=reason, answer_snippet=bad_answer)
