@@ -57,6 +57,10 @@ Your job is to synthesize retrieved graph database information into a precise, h
 
 ## Required Output Format
 
+<thought>
+[Write a concise 1-2 sentence internal reasoning thought explaining how you will synthesize the retrieved entities/chunks to answer the query.]
+</thought>
+
 ### {format_title}
 ────────────────────────
 
@@ -187,7 +191,12 @@ SYNTHESIS_USER_TEMPLATE = """Context:
 
 Question: {query}
 
-Write a formal engineering report answer following the required output format.
+CRITICAL: Start your response with a <thought>...</thought> block. 
+Inside <thought>, write 1-2 sentences of your OWN original engineering reasoning. 
+Explain your strategy for synthesizing this specific data, referencing the actual entity names (e.g. specific supplier, batch ID, defect, or machine) found in the context.
+Do NOT output generic template phrases like "Analyzing the retrieved context for..." or repeat the user's question verbatim. Write like a real senior quality engineer thinking out loud.
+
+Now write the formal engineering report answer following the required output format.
 Preserve all relationship labels exactly as shown in the Graph Traversal Paths."""
 
 SYNTHESIS_RISK_EXPOSURE_PROMPT = """You are an expert enterprise manufacturing quality risk assessor writing formal risk audit reports.

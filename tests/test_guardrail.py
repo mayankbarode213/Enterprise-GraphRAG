@@ -121,6 +121,27 @@ class TestGuardrailAgent:
         assert response.confidence == 0.0
         assert "Hallucination pattern" in step.observation
 
+    async def test_vector_fallback_message(self, guardrail, reasoning_steps):
+        """Guardrail rejection in vector mode must produce a VectorRAG-specific fallback message."""
+        vector_routing = RoutingDecision(
+            tool=ToolChoice.VECTOR,
+            reason="Semantic lookup requested by user.",
+            confidence=1.0,
+        )
+        response, step, rejected = await guardrail.validate(
+            query="Which supplier batches indirectly caused all defects?",
+            answer="The affected batches are Batch A, Batch B, and Batch C.",
+            routing_decision=vector_routing,
+            reasoning_steps=reasoning_steps,
+            tokens_used=100,
+            prompt_tokens=80,
+            completion_tokens=20,
+            latency_ms=200.0,
+        )
+        assert rejected is True
+        assert "VectorRAG could not retrieve sufficient textual context" in response.answer
+        assert "Text-to-Cypher" not in response.answer
+
     # ── Layer 2: Pydantic Schema (demo raises — only for testing) ─────────────
 
     def test_demonstrate_schema_failure_raises(self, guardrail):

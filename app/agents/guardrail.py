@@ -23,6 +23,7 @@ from app.schemas.models import (
     GraphResult,
     ReasoningStep,
     RoutingDecision,
+    ToolChoice,
     VectorResult,
 )
 
@@ -56,8 +57,8 @@ HALLUCINATION_PATTERNS: list[str] = [
     r"\bEntity\s+\d+\b",            # "Entity 1", "Entity 2"
     r"\[PLACEHOLDER\]",             # "[PLACEHOLDER]"
     r"\bXYZ\b",                     # Generic "XYZ" placeholders
-    r"\bfoo\b",                     # Test placeholders
-    r"<[^>]+>",                     # XML/HTML-style placeholders like <name>
+    r"<(?:placeholder|insert|name_here|value_here)>",  # Explicit placeholder tags like <placeholder>
+    r"\[INSERT_[^\]]+\]",           # "[INSERT_NAME]"
 ]
 
 # Phrases indicating zero traversal — LLM admitted it found nothing meaningful
@@ -164,12 +165,19 @@ class GuardrailAgent:
         passed, reason = self._check_content(answer, graph_result)
         if not passed:
             logger.warning("GuardrailAgent BLOCKED (Layer 1 — Content): %s", reason)
-            fallback_answer = (
-                "⚠️ The system could not retrieve sufficient graph data to answer this query reliably. "
-                "This may be because the Text-to-Cypher query returned no connected entities, or the "
-                "synthesized answer contained placeholder text. "
-                "Please try rephrasing your query or disable Text-to-Cypher mode for a more precise traversal."
-            )
+            if routing_decision.tool == ToolChoice.VECTOR:
+                fallback_answer = (
+                    "⚠️ VectorRAG could not retrieve sufficient textual context from unstructured documents to answer this multi-hop query. "
+                    "Vector search locates isolated text passages but cannot trace multi-hop entity relationships across multiple schema hops. "
+                    "Please switch to GraphRAG mode or Auto Router for complete relationship traversal."
+                )
+            else:
+                fallback_answer = (
+                    "⚠️ The system could not retrieve sufficient graph data to answer this query reliably. "
+                    "This may be because the Text-to-Cypher query returned no connected entities, or the "
+                    "synthesized answer contained placeholder text. "
+                    "Please try rephrasing your query or disable Text-to-Cypher mode for a more precise traversal."
+                )
             reject_step = ReasoningStep(
                 thought="Guardrail Layer 1 (Content) rejected the synthesized answer.",
                 action="guardrail_reject",
@@ -196,8 +204,8 @@ class GuardrailAgent:
 
         step = ReasoningStep(
             thought=(
-                "Validating synthesized answer against the FinalResponse Pydantic v2 schema. "
-                "Checking for empty answers, placeholders, and schema conformance."
+                "Verifying synthesized response against quality criteria: checking for completeness, "
+                "absence of generic hallucinated placeholders, and strict Pydantic v2 schema compliance."
             ),
             action="guardrail_validate",
             observation=(

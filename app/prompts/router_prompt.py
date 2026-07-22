@@ -42,7 +42,7 @@ Use this when the question is:
 You MUST respond with ONLY valid JSON matching this exact schema:
 {
   "tool": "graph" | "vector" | "reject",
-  "reason": "Explanation of why this tool was chosen (minimum 10 words)",
+  "reason": "A concise, natural 1-sentence analytical thought explaining why this specific query and its entities require graph traversal vs vector search",
   "confidence": 0.0 to 1.0,
   "requires_multi_hop": true | false
 }

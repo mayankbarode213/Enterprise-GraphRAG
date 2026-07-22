@@ -245,12 +245,22 @@ class SynthesizerAgent:
         else:
             res_desc = "similarity search"
 
+        raw_text = str(llm_response.content).strip()
+
+        # Extract true LLM reasoning from <thought>...</thought> tag
+        llm_thought = ""
+        import re
+        thought_match = re.search(r"<thought>(.*?)</thought>", raw_text, re.DOTALL | re.IGNORECASE)
+        if thought_match:
+            llm_thought = thought_match.group(1).strip()
+            # Strip the <thought> block from the final answer text
+            answer = re.sub(r"<thought>.*?</thought>", "", raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
+        else:
+            answer = raw_text
+            llm_thought = f"Synthesizing '{format_title}' report from retrieved context across {metadata['graph_entities']} nodes and {metadata['vector_chunks']} document chunks."
+
         step = ReasoningStep(
-            thought=(
-                f"Consolidating retrieved context for report type '{format_title}'. "
-                f"Structuring final comprehensive answer based on {metadata['graph_entities']} resolved graph nodes and "
-                f"{metadata['vector_chunks']} document chunks."
-            ),
+            thought=llm_thought,
             action="synthesize_answer",
             observation=(
                 f"Synthesis complete in {latency_ms:.1f}ms using {token_count} tokens (input={prompt_tokens}, output={completion_tokens}). "

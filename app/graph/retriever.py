@@ -115,32 +115,41 @@ RELATIONSHIPS (EXACT DIRECTIONS)
 (:Defect)    -[:CAUSED_BY_BATCH]->     (:Batch)
 
 ════════════════════════════════════════════════════════
+OUTPUT FORMAT (MUST BE VALID JSON)
+════════════════════════════════════════════════════════
+You MUST respond with a single JSON object containing two fields:
+{
+  "thought": "1-2 sentence analytical explanation of your graph strategy, entity connections, and filter conditions",
+  "cypher": "The raw executable Cypher query"
+}
+
+════════════════════════════════════════════════════════
 STRICT QUERY RULES
 ════════════════════════════════════════════════════════
-1. Return ONLY the raw Cypher query. No markdown, no explanation.
-2. NO destructive operations: NO CREATE, MERGE, DELETE, SET, REMOVE.
-3. Use UNDIRECTED relationships `-[:REL]-` (without `>` or `<`) to avoid direction mismatches.
-4. ALL MATCH clauses MUST share a common bound variable to stay connected.
+1. NO destructive operations: NO CREATE, MERGE, DELETE, SET, REMOVE.
+2. Use UNDIRECTED relationships `-[:REL]-` (without `>` or `<`) to avoid direction mismatches.
+3. ALL MATCH clauses MUST share a common bound variable to stay connected.
    BAD:  MATCH (i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt)  ← isolated, unconnected to main chain
    GOOD: MATCH (s:Supplier)-[:SUPPLIED_BATCH]-(b:Batch)-[:CAUSED_BY_BATCH]-(d:Defect)-[:REPORTED_AS]-(i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt:Maintenance)
-5. Use ONLY ONE WHERE clause. Combine conditions with AND / OR. NEVER repeat WHERE.
-6. Only return node variables (s, b, c, m, etc.) — NEVER return scalar properties like b.qcStatus.
-7. NEVER invent property names. Use ONLY the exact property names listed above.
+4. Use ONLY ONE WHERE clause. Combine conditions with AND / OR. NEVER repeat WHERE.
+5. Only return node variables (s, b, c, m, etc.) — NEVER return scalar properties like b.qcStatus.
+6. NEVER invent property names. Use ONLY the exact property names listed above.
 
 ════════════════════════════════════════════════════════
 EXAMPLE 1 — Supplier → Defect Root Cause Lineage
 ════════════════════════════════════════════════════════
-MATCH (s:Supplier)-[:SUPPLIED_BATCH]-(b:Batch)-[:MANUFACTURED_AS]-(c:Component)-[:INSTALLED_ON]-(m:Machine)-[:UNDERWENT]-(mt:Maintenance)-[:PERFORMED_BY]-(v:Vendor)
-MATCH (b)-[:CAUSED_BY_BATCH]-(d:Defect)-[:REPORTED_AS]-(i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt)
-WHERE toLower(m.name) CONTAINS toLower('RW-101') AND toLower(v.name) CONTAINS toLower('Apex')
-RETURN s, b, c, m, mt, v, i, d
+{
+  "thought": "Tracing root cause lineage from machine RW-101 and vendor Apex through maintenance and incident nodes back to supplier batches.",
+  "cypher": "MATCH (s:Supplier)-[:SUPPLIED_BATCH]-(b:Batch)-[:MANUFACTURED_AS]-(c:Component)-[:INSTALLED_ON]-(m:Machine)-[:UNDERWENT]-(mt:Maintenance)-[:PERFORMED_BY]-(v:Vendor) MATCH (b)-[:CAUSED_BY_BATCH]-(d:Defect)-[:REPORTED_AS]-(i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt) WHERE toLower(m.name) CONTAINS toLower('RW-101') AND toLower(v.name) CONTAINS toLower('Apex') RETURN s, b, c, m, mt, v, i, d"
+}
 
 ════════════════════════════════════════════════════════
 EXAMPLE 2 — Defect → Back-trace to Supplier + all Batches
 ════════════════════════════════════════════════════════
-MATCH (d:Defect)-[:CAUSED_BY_BATCH]-(b:Batch)-[:SUPPLIED_BATCH]-(s:Supplier)-[:SUPPLIED_BATCH]-(b2:Batch)-[:MANUFACTURED_AS]-(c2:Component)-[:INSTALLED_ON]-(m:Machine)
-WHERE toLower(d.name) CONTAINS toLower('Hydraulic Seal Leakage')
-RETURN d, b, s, b2, c2, m
+{
+  "thought": "Back-tracing from Hydraulic Seal Leakage defect to originating batch, supplier, and all other batches from the same supplier.",
+  "cypher": "MATCH (d:Defect)-[:CAUSED_BY_BATCH]-(b:Batch)-[:SUPPLIED_BATCH]-(s:Supplier)-[:SUPPLIED_BATCH]-(b2:Batch)-[:MANUFACTURED_AS]-(c2:Component)-[:INSTALLED_ON]-(m:Machine) WHERE toLower(d.name) CONTAINS toLower('Hydraulic Seal Leakage') RETURN d, b, s, b2, c2, m"
+}
 """
 
         try:
@@ -150,7 +159,24 @@ RETURN d, b, s, b2, c2, m
                     ("user", f"Generate Cypher query for: {query}"),
                 ]
             )
-            cypher_text = response.content.strip().replace("```cypher", "").replace("```", "").strip()
+            raw_text = response.content.strip().replace("```cypher", "").replace("```json", "").replace("```", "").strip()
+            
+            t2c_thought = ""
+            cypher_text = raw_text
+            
+            # If the LLM returned JSON or structured output with thought/cypher fields:
+            import json
+            try:
+                parsed_json = json.loads(raw_text)
+                if isinstance(parsed_json, dict):
+                    cypher_text = parsed_json.get("cypher") or parsed_json.get("query") or raw_text
+                    t2c_thought = parsed_json.get("thought") or parsed_json.get("reasoning") or ""
+            except Exception:
+                pass
+
+            if not t2c_thought:
+                t2c_thought = f"Analyzing graph entities and relationships to trace dependencies for query '{query}'."
+
             logger.info("T2C Generated Cypher: %s", cypher_text)
 
             from app.graph.cypher_guardrail import CypherGuardrail
@@ -213,6 +239,7 @@ RETURN d, b, s, b2, c2, m
                 operation=GraphOperation.TRAVERSAL,
                 entities=entities,
                 cypher_used=cypher_text,
+                t2c_thought=t2c_thought,
                 intent="text2cypher",
                 latency_ms=latency_ms,
                 depth_hops=1,

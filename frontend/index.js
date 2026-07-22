@@ -68,13 +68,8 @@ async function submitQuery(event) {
 
     const mode = document.querySelector('input[name="search-mode"]:checked').value;
 
-    // Toggle telemetry panel visibility based on mode
-    const telemetryPanel = document.getElementById("panel-telemetry");
-    if (mode === "compare") {
-        telemetryPanel.style.display = "none";
-    } else {
-        telemetryPanel.style.display = "";
-    }
+    // Dynamic UI controls update
+    updateUIControls();
 
     // Update badge
     const telemetryBadge = document.getElementById("telemetry-badge");
@@ -490,15 +485,26 @@ function removeProcessingSpinner() {
 // ============================================================
 // Render welcome message with markdown on page load
 // ============================================================
-function updateTelemetryPanelVisibility() {
+function updateUIControls() {
     const checkedRadio = document.querySelector('input[name="search-mode"]:checked');
     const mode = checkedRadio ? checkedRadio.value : "auto";
+
+    // 1. Toggle telemetry panel for compare mode
     const telemetryPanel = document.getElementById("panel-telemetry");
     if (telemetryPanel) {
-        if (mode === "compare") {
-            telemetryPanel.style.display = "none";
+        telemetryPanel.style.display = (mode === "compare") ? "none" : "";
+    }
+
+    // 2. Hide Text-to-Cypher checkbox completely when in VectorRAG Only mode
+    const t2cSelector = document.querySelector(".t2c-selector");
+    const t2cCheckbox = document.getElementById("t2c-checkbox");
+
+    if (t2cSelector) {
+        if (mode === "vector") {
+            t2cSelector.style.display = "none";
+            if (t2cCheckbox) t2cCheckbox.checked = false;
         } else {
-            telemetryPanel.style.display = "";
+            t2cSelector.style.display = "inline-flex";
         }
     }
 }
@@ -510,13 +516,11 @@ document.addEventListener("DOMContentLoaded", () => {
         welcomeBubble.innerHTML = formatMessageContent(welcomeBubble.textContent.trim());
     }
 
-    // Run initial visibility check (handles page refresh caching the selected option)
-    updateTelemetryPanelVisibility();
+    // Run initial UI controls check (handles page refresh caching the selected option)
+    updateUIControls();
 
-    // Set up radio button change listeners to dynamically toggle telemetry panel visibility
+    // Set up radio button change listeners to dynamically update UI controls
     document.querySelectorAll('input[name="search-mode"]').forEach(radio => {
-        radio.addEventListener("change", () => {
-            updateTelemetryPanelVisibility();
-        });
+        radio.addEventListener("change", updateUIControls);
     });
 });

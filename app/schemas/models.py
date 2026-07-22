@@ -138,6 +138,7 @@ class GraphResult(BaseModel):
     entities: list[Entity] = Field(default_factory=list)
     paths: list[GraphPath] = Field(default_factory=list)
     cypher_used: str = Field(default="", description="The Cypher query that was executed")
+    t2c_thought: str = Field(default="", description="The LLM internal reasoning explaining why it generated this Cypher query")
     answer: str = Field(default="", description="LLM-synthesized answer from graph context")
     intent: str | None = Field(default=None, description="The detected query intent")
     latency_ms: float = Field(default=0.0, ge=0.0)
