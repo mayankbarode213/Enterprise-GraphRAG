@@ -88,6 +88,14 @@ class VectorRetriever:
             latency_embed,
         )
 
+        if not citations:
+            return VectorResult(
+                query=query,
+                chunks=[],
+                answer="No relevant document chunks were found in the vector store for this query.",
+                latency_ms=round((time.perf_counter() - t0) * 1000, 2),
+            )
+
         # Step 4: LLM synthesis from retrieved chunks
         context = "\n\n---\n\n".join(
             f"[Source: {c.source}]\n{c.content}" for c in citations

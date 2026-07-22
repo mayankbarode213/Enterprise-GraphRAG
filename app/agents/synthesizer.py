@@ -120,6 +120,22 @@ class SynthesizerAgent:
             }
             format_title = title_mapping.get(intent_value, "Root Cause Lineage")
 
+        # Handle empty vector retrieval directly to prevent LLM hallucination of documents
+        if tool_used == ToolChoice.VECTOR.value and (not vector_result or not vector_result.chunks):
+            fallback_text = (
+                vector_result.answer
+                if vector_result and vector_result.answer
+                else "No relevant document chunks were retrieved from the vector store for this query."
+            )
+            answer = f"{fallback_text}\n\n## Context Source\nTool used: VECTOR"
+            latency_ms = (time.perf_counter() - t0) * 1000
+            step = ReasoningStep(
+                thought="Vector store retrieved 0 document chunks. Returning direct no-context response.",
+                action="synthesize_answer",
+                observation=f"Returned direct response without LLM synthesis in {latency_ms:.1f}ms.",
+            )
+            return answer, 0, 0, 0, latency_ms, step
+
         # Build context string from the appropriate result
         context = self._build_context(tool_used, graph_result, vector_result)
 

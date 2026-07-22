@@ -54,3 +54,5 @@ scratch_test_*.py
 github_push_commands.txt
 *.tmp
 data/old_documents/
+docs\app\entities.csv
+docs\app\relationships.csv
