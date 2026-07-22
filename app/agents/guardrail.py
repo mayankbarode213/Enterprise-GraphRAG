@@ -147,16 +147,15 @@ class GuardrailAgent:
         latency_ms: float,
         graph_result: GraphResult | None = None,
         vector_result: VectorResult | None = None,
-    ) -> tuple[FinalResponse, ReasoningStep]:
+    ) -> tuple[FinalResponse, ReasoningStep, bool]:
         """
         Two-layer validation: content guardrail → Pydantic schema guardrail.
 
         Returns:
-            (FinalResponse, ReasoningStep)
-
-        Raises:
-            ContentGuardrailError: Layer 1 failure (placeholder / hallucination / zero-entity)
-            ValidationError:       Layer 2 failure (Pydantic schema violation)
+            (FinalResponse, ReasoningStep, rejected: bool)
+            rejected=True means a guardrail layer blocked the answer.
+            Never raises — always returns a structured FinalResponse so
+            LangGraph cannot intercept an unhandled node exception.
         """
         t0 = time.perf_counter()
         logger.info("GuardrailAgent.validate | answer_len=%d", len(answer))
@@ -165,7 +164,32 @@ class GuardrailAgent:
         passed, reason = self._check_content(answer, graph_result)
         if not passed:
             logger.warning("GuardrailAgent BLOCKED (Layer 1 — Content): %s", reason)
-            raise ContentGuardrailError(reason=reason, answer_snippet=answer)
+            fallback_answer = (
+                "⚠️ The system could not retrieve sufficient graph data to answer this query reliably. "
+                "This may be because the Text-to-Cypher query returned no connected entities, or the "
+                "synthesized answer contained placeholder text. "
+                "Please try rephrasing your query or disable Text-to-Cypher mode for a more precise traversal."
+            )
+            reject_step = ReasoningStep(
+                thought="Guardrail Layer 1 (Content) rejected the synthesized answer.",
+                action="guardrail_reject",
+                observation=f"ContentGuardrailError: {reason}",
+            )
+            final_steps = list(reasoning_steps) + [reject_step]
+            fallback_response = FinalResponse(
+                query=query,
+                tool_used=routing_decision.tool,
+                answer=fallback_answer,
+                reasoning=final_steps,
+                confidence=0.0,
+                tokens_used=tokens_used,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                latency_ms=latency_ms,
+                graph_result=graph_result,
+                vector_result=vector_result,
+            )
+            return fallback_response, reject_step, True
 
         # ── Layer 2: Pydantic Schema Guardrail ───────────────────────────────
         latency_guard = (time.perf_counter() - t0) * 1000
@@ -187,26 +211,50 @@ class GuardrailAgent:
         final_steps = list(reasoning_steps) + [step]
 
         # This call raises pydantic.ValidationError if schema constraints are violated
-        final_response = FinalResponse(
-            query=query,
-            tool_used=routing_decision.tool,
-            answer=answer,
-            reasoning=final_steps,
-            confidence=routing_decision.confidence,
-            tokens_used=tokens_used,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            latency_ms=latency_ms,
-            graph_result=graph_result,
-            vector_result=vector_result,
-        )
+        try:
+            final_response = FinalResponse(
+                query=query,
+                tool_used=routing_decision.tool,
+                answer=answer,
+                reasoning=final_steps,
+                confidence=routing_decision.confidence,
+                tokens_used=tokens_used,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                latency_ms=latency_ms,
+                graph_result=graph_result,
+                vector_result=vector_result,
+            )
+        except ValidationError as exc:
+            logger.error("GuardrailAgent BLOCKED (Layer 2 — Schema): %s", exc)
+            schema_reject_step = ReasoningStep(
+                thought="Guardrail Layer 2 (Pydantic Schema) rejected the synthesized answer.",
+                action="guardrail_reject",
+                observation=f"ValidationError: {str(exc)[:300]}",
+            )
+            fallback_answer = (
+                "⚠️ The system produced a structurally invalid response that failed schema validation. "
+                "This is a system-level safety catch. Please retry your query."
+            )
+            fallback_response = FinalResponse(
+                query=query,
+                tool_used=routing_decision.tool,
+                answer=fallback_answer,
+                reasoning=final_steps + [schema_reject_step],
+                confidence=0.0,
+                tokens_used=tokens_used,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                latency_ms=latency_ms,
+            )
+            return fallback_response, schema_reject_step, True
 
         logger.info(
             "GuardrailAgent PASSED | tool=%s | confidence=%.2f",
             final_response.tool_used.value,
             final_response.confidence,
         )
-        return final_response, step
+        return final_response, step, False
 
     # ── Demo / Testing ────────────────────────────────────────────────────────
 

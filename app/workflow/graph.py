@@ -151,98 +151,43 @@ async def synthesizer_node(state: AgentStateDict) -> AgentStateDict:
 
 
 async def guardrail_node(state: AgentStateDict) -> AgentStateDict:
-    """Validate the answer against the FinalResponse Pydantic v2 schema.
+    """Validate the answer via two-layer guardrail (content + Pydantic schema).
 
-    On rejection:
-      - ContentGuardrailError (Layer 1): answer contained placeholder/hallucination
-      - ValidationError       (Layer 2): answer violated Pydantic schema constraints
-
-    Both cases produce a structured FinalResponse with a safe fallback message
-    instead of crashing the pipeline with an unhandled exception.
+    validate() always returns a structured FinalResponse — never raises —
+    so LangGraph cannot intercept an unhandled node exception.
+    rejected=True means a guardrail layer caught a bad answer and substituted
+    a safe fallback with confidence=0.0.
     """
-    from pydantic import ValidationError
-    from app.agents.guardrail import ContentGuardrailError
-
     query = state["query"]
     decision: RoutingDecision = state["routing_decision"]
     steps = list(state.get("reasoning_steps", []))
     answer = state.get("_synthesized_answer", "")  # type: ignore[arg-type]
 
-    try:
-        final_response, step = await _guardrail.validate(
-            query=query,
-            answer=answer,
-            routing_decision=decision,
-            reasoning_steps=steps,
-            tokens_used=state.get("total_tokens", 0),
-            prompt_tokens=state.get("prompt_tokens", 0),
-            completion_tokens=state.get("completion_tokens", 0),
-            latency_ms=state.get("total_latency_ms", 0.0),
-            graph_result=state.get("graph_result"),
-            vector_result=state.get("vector_result"),
-        )
-        steps.append(step)
+    final_response, step, rejected = await _guardrail.validate(
+        query=query,
+        answer=answer,
+        routing_decision=decision,
+        reasoning_steps=steps,
+        tokens_used=state.get("total_tokens", 0),
+        prompt_tokens=state.get("prompt_tokens", 0),
+        completion_tokens=state.get("completion_tokens", 0),
+        latency_ms=state.get("total_latency_ms", 0.0),
+        graph_result=state.get("graph_result"),
+        vector_result=state.get("vector_result"),
+    )
+    steps.append(step)
+
+    if rejected:
+        logger.warning("[guardrail_node] REJECTED — returning fallback response | reason=%s", step.observation)
+    else:
         logger.info("[guardrail_node] PASSED tool=%s", final_response.tool_used.value)
-
-    except ContentGuardrailError as exc:
-        # Layer 1 rejection: content quality failure (placeholder / hallucination / zero-entity)
-        logger.warning("[guardrail_node] REJECTED (Layer 1 — Content): %s", exc.reason)
-        fallback_step = ReasoningStep(
-            thought="Guardrail Layer 1 (Content) rejected the synthesized answer.",
-            action="guardrail_reject",
-            observation=f"ContentGuardrailError: {exc.reason}",
-        )
-        steps.append(fallback_step)
-        fallback_answer = (
-            "⚠️ The system could not retrieve sufficient graph data to answer this query reliably. "
-            "This may be because the Text-to-Cypher query returned no connected entities, or the "
-            "synthesized answer contained placeholder text. "
-            "Please try rephrasing your query or disable Text-to-Cypher mode for a more precise traversal."
-        )
-        final_response = FinalResponse(
-            query=query,
-            tool_used=decision.tool,
-            answer=fallback_answer,
-            reasoning=steps,
-            confidence=0.0,
-            tokens_used=state.get("total_tokens", 0),
-            prompt_tokens=state.get("prompt_tokens", 0),
-            completion_tokens=state.get("completion_tokens", 0),
-            latency_ms=state.get("total_latency_ms", 0.0),
-            graph_result=state.get("graph_result"),
-            vector_result=state.get("vector_result"),
-        )
-
-    except ValidationError as exc:
-        # Layer 2 rejection: Pydantic schema constraint violated
-        logger.error("[guardrail_node] REJECTED (Layer 2 — Schema): %s", exc)
-        fallback_step = ReasoningStep(
-            thought="Guardrail Layer 2 (Pydantic Schema) rejected the synthesized answer.",
-            action="guardrail_reject",
-            observation=f"ValidationError: {str(exc)[:300]}",
-        )
-        steps.append(fallback_step)
-        fallback_answer = (
-            "⚠️ The system produced a structurally invalid response that failed schema validation. "
-            "This is a system-level safety catch. Please retry your query."
-        )
-        final_response = FinalResponse(
-            query=query,
-            tool_used=decision.tool,
-            answer=fallback_answer,
-            reasoning=steps,
-            confidence=0.0,
-            tokens_used=state.get("total_tokens", 0),
-            prompt_tokens=state.get("prompt_tokens", 0),
-            completion_tokens=state.get("completion_tokens", 0),
-            latency_ms=state.get("total_latency_ms", 0.0),
-        )
 
     return {
         **state,
         "final_response": final_response,
         "reasoning_steps": steps,
     }
+
 
 
 
