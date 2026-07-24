@@ -88,69 +88,82 @@ class GraphRetriever:
         start_time = time.perf_counter()
 
         system_prompt = """You are an expert Neo4j Cypher Database Engineer for a Manufacturing Plant Knowledge Graph.
-Given a user question, generate ONE valid, executable Cypher query that traverses the graph.
+                            Given a user question, generate ONE valid, executable Cypher query that traverses the graph.
 
-════════════════════════════════════════════════════════
-NODE LABELS & THEIR EXACT PROPERTIES
-════════════════════════════════════════════════════════
-(:Supplier)   id, name, country, rating
-(:Batch)      id, name, qc_status, production_date, quantity
-(:Component)  id, name, part_number, material
-(:Machine)    id, name, plant, production_line, commissioned
-(:Maintenance)id, name, plant, maintenance_type, date, notes
-(:Vendor)     id, name, country, specialty
-(:Incident)   id, name, severity, date
-(:Defect)     id, name, severity, date
+                            ════════════════════════════════════════════════════════
+                            NODE LABELS & THEIR EXACT PROPERTIES
+                            ════════════════════════════════════════════════════════
+                            (:Supplier)   id, name, country, rating
+                            (:Batch)      id, name, qc_status, production_date, quantity
+                            (:Component)  id, name, part_number, material
+                            (:Machine)    id, name, plant, production_line, commissioned
+                            (:Maintenance)id, name, plant, maintenance_type, date, notes
+                            (:Vendor)     id, name, country, specialty
+                            (:Incident)   id, name, severity, date
+                            (:Defect)     id, name, severity, date
 
-════════════════════════════════════════════════════════
-RELATIONSHIPS (EXACT DIRECTIONS)
-════════════════════════════════════════════════════════
-(:Supplier)  -[:SUPPLIED_BATCH]->      (:Batch)
-(:Batch)     -[:MANUFACTURED_AS]->     (:Component)
-(:Component) -[:INSTALLED_ON]->        (:Machine)
-(:Machine)   -[:UNDERWENT]->           (:Maintenance)
-(:Maintenance)-[:PERFORMED_BY]->       (:Vendor)
-(:Incident)  -[:TRIGGERED_MAINTENANCE]->(:Maintenance)
-(:Incident)  -[:REPORTED_AS]->         (:Defect)
-(:Defect)    -[:CAUSED_BY_BATCH]->     (:Batch)
+                            ════════════════════════════════════════════════════════
+                            RELATIONSHIPS (EXACT DIRECTIONS & ALLOWED PAIRS)
+                            ════════════════════════════════════════════════════════
+                            (:Supplier)  -[:SUPPLIED_BATCH]->      (:Batch)
+                            (:Batch)     -[:MANUFACTURED_AS]->     (:Component)
+                            (:Component) -[:INSTALLED_ON]->        (:Machine)
+                            (:Machine)   -[:UNDERWENT]->           (:Maintenance)
+                            (:Maintenance)-[:PERFORMED_BY]->       (:Vendor)
+                            (:Incident)  -[:TRIGGERED_MAINTENANCE]->(:Maintenance)
+                            (:Incident)  -[:REPORTED_AS]->         (:Defect)
+                            (:Defect)    -[:AFFECTED_COMPONENT]->  (:Component)
+                            (:Defect)    -[:CAUSED_BY_BATCH]->     (:Batch)
 
-════════════════════════════════════════════════════════
-OUTPUT FORMAT (MUST BE VALID JSON)
-════════════════════════════════════════════════════════
-You MUST respond with a single JSON object containing two fields:
-{
-  "thought": "1-2 sentence analytical explanation of your graph strategy, entity connections, and filter conditions",
-  "cypher": "The raw executable Cypher query"
-}
+                            ════════════════════════════════════════════════════════
+                            CRITICAL SCHEMA CONSTRAINTS (DO NOT VIOLATE)
+                            ════════════════════════════════════════════════════════
+                            1. ONLY (:Supplier) connects to (:Batch) via SUPPLIED_BATCH.
+                            - NEVER attach (:Vendor) to (:Batch) or SUPPLIED_BATCH! Vendor ONLY performs maintenance ((:Maintenance)-[:PERFORMED_BY]->(:Vendor)).
+                            2. Vendor NEVER connects directly to Batch, Defect, or Supplier.
+                            3. The EXACT causal traversal chain from Machine/Vendor back to Supplier is:
+                            MATCH (s:Supplier)-[:SUPPLIED_BATCH]-(b:Batch)-[:MANUFACTURED_AS]-(c:Component)-[:INSTALLED_ON]-(m:Machine)-[:UNDERWENT]-(mt:Maintenance)-[:PERFORMED_BY]-(v:Vendor)
+                            MATCH (i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt)
+                            MATCH (i)-[:REPORTED_AS]-(d:Defect)
+                            MATCH (d)-[:CAUSED_BY_BATCH]-(b)
+                            4. DO NOT add hallucinated date filters like `i.date > mt.date`. Incidents trigger maintenance events, so incident date occurs ON or BEFORE maintenance date (i.date <= mt.date). Unrequested date filters will incorrectly drop valid rows!
+                            5. ALWAYS return `s` (Supplier), `b` (Batch), `c` (Component), `m` (Machine), `mt` (Maintenance), `v` (Vendor), `i` (Incident), `d` (Defect) when asked for supplier batches or root cause lineage.
 
-════════════════════════════════════════════════════════
-STRICT QUERY RULES
-════════════════════════════════════════════════════════
-1. NO destructive operations: NO CREATE, MERGE, DELETE, SET, REMOVE.
-2. Use UNDIRECTED relationships `-[:REL]-` (without `>` or `<`) to avoid direction mismatches.
-3. ALL MATCH clauses MUST share a common bound variable to stay connected.
-   BAD:  MATCH (i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt)  ← isolated, unconnected to main chain
-   GOOD: MATCH (s:Supplier)-[:SUPPLIED_BATCH]-(b:Batch)-[:CAUSED_BY_BATCH]-(d:Defect)-[:REPORTED_AS]-(i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt:Maintenance)
-4. Use ONLY ONE WHERE clause. Combine conditions with AND / OR. NEVER repeat WHERE.
-5. Only return node variables (s, b, c, m, etc.) — NEVER return scalar properties like b.qcStatus.
-6. NEVER invent property names. Use ONLY the exact property names listed above.
+                            ════════════════════════════════════════════════════════
+                            OUTPUT FORMAT (MUST BE VALID JSON)
+                            ════════════════════════════════════════════════════════
+                            You MUST respond with a single JSON object containing two fields:
+                            {
+                            "thought": "1-2 sentence analytical explanation of your graph strategy, entity connections, and filter conditions",
+                            "cypher": "The raw executable Cypher query"
+                            }
 
-════════════════════════════════════════════════════════
-EXAMPLE 1 — Supplier → Defect Root Cause Lineage
-════════════════════════════════════════════════════════
-{
-  "thought": "Tracing root cause lineage from machine RW-101 and vendor Apex through maintenance and incident nodes back to supplier batches.",
-  "cypher": "MATCH (s:Supplier)-[:SUPPLIED_BATCH]-(b:Batch)-[:MANUFACTURED_AS]-(c:Component)-[:INSTALLED_ON]-(m:Machine)-[:UNDERWENT]-(mt:Maintenance)-[:PERFORMED_BY]-(v:Vendor) MATCH (b)-[:CAUSED_BY_BATCH]-(d:Defect)-[:REPORTED_AS]-(i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt) WHERE toLower(m.name) CONTAINS toLower('RW-101') AND toLower(v.name) CONTAINS toLower('Apex') RETURN s, b, c, m, mt, v, i, d"
-}
+                            ════════════════════════════════════════════════════════
+                            STRICT QUERY RULES
+                            ════════════════════════════════════════════════════════
+                            1. NO destructive operations: NO CREATE, MERGE, DELETE, SET, REMOVE.
+                            2. Use UNDIRECTED relationships `-[:REL]-` (without `>` or `<`) to avoid direction mismatches.
+                            3. ALL MATCH clauses MUST share a common bound variable to stay connected.
+                            4. Use ONLY ONE WHERE clause. Combine conditions with AND / OR. NEVER repeat WHERE.
+                            5. Only return node variables (s, b, c, m, mt, v, i, d) — NEVER return scalar properties like b.qcStatus.
+                            7. For entity/component name matching (e.g. c.name, m.name), match core keywords or split multi-word queries with AND (e.g. `WHERE toLower(c.name) CONTAINS toLower('Hydraulic') AND toLower(c.name) CONTAINS toLower('Seal')`). Component names in the database use full formal titles (e.g. "Hydraulic Pressure Seal" for Hydraulic Seal, "Servo Motor SM-200" for Servo Motor). Searching for "Hydraulic Seal" as a single contiguous string will fail because of the middle word "Pressure"!
 
-════════════════════════════════════════════════════════
-EXAMPLE 2 — Defect → Back-trace to Supplier + all Batches
-════════════════════════════════════════════════════════
-{
-  "thought": "Back-tracing from Hydraulic Seal Leakage defect to originating batch, supplier, and all other batches from the same supplier.",
-  "cypher": "MATCH (d:Defect)-[:CAUSED_BY_BATCH]-(b:Batch)-[:SUPPLIED_BATCH]-(s:Supplier)-[:SUPPLIED_BATCH]-(b2:Batch)-[:MANUFACTURED_AS]-(c2:Component)-[:INSTALLED_ON]-(m:Machine) WHERE toLower(d.name) CONTAINS toLower('Hydraulic Seal Leakage') RETURN d, b, s, b2, c2, m"
-}
-"""
+                            ════════════════════════════════════════════════════════
+                            EXAMPLE 1 — Machine/Vendor → Causal Defect Lineage to Supplier
+                            ════════════════════════════════════════════════════════
+                            {
+                            "thought": "Tracing multi-hop causal lineage from machine RW-101 and vendor Apex through maintenance, incident, defect, component, and batch nodes back to supplier batches and root supplier.",
+                            "cypher": "MATCH (s:Supplier)-[:SUPPLIED_BATCH]-(b:Batch)-[:MANUFACTURED_AS]-(c:Component)-[:INSTALLED_ON]-(m:Machine)-[:UNDERWENT]-(mt:Maintenance)-[:PERFORMED_BY]-(v:Vendor) MATCH (i:Incident)-[:TRIGGERED_MAINTENANCE]-(mt) MATCH (i)-[:REPORTED_AS]-(d:Defect) MATCH (d)-[:CAUSED_BY_BATCH]-(b) WHERE toLower(m.name) CONTAINS toLower('RW-101') AND toLower(v.name) CONTAINS toLower('Apex Industrial Services') RETURN s, b, c, m, mt, v, i, d"
+                            }
+
+                            ════════════════════════════════════════════════════════
+                            EXAMPLE 2 — Defect → Back-trace to Supplier + all Batches
+                            ════════════════════════════════════════════════════════
+                            {
+                            "thought": "Back-tracing from Hydraulic Seal Leakage defect to originating batch, supplier, and all other batches from the same supplier.",
+                            "cypher": "MATCH (d:Defect)-[:CAUSED_BY_BATCH]-(b:Batch)-[:SUPPLIED_BATCH]-(s:Supplier)-[:SUPPLIED_BATCH]-(b2:Batch)-[:MANUFACTURED_AS]-(c2:Component)-[:INSTALLED_ON]-(m:Machine) WHERE toLower(d.name) CONTAINS toLower('Hydraulic Seal Leakage') RETURN d, b, s, b2, c2, m"
+                            }
+                            """
 
         try:
             response = await self._llm.ainvoke(
@@ -178,6 +191,23 @@ EXAMPLE 2 — Defect → Back-trace to Supplier + all Batches
                 t2c_thought = f"Analyzing graph entities and relationships to trace dependencies for query '{query}'."
 
             logger.info("T2C Generated Cypher: %s", cypher_text)
+
+            # Auto-sanitize common component string mismatches (e.g. Hydraulic Seal -> Hydraulic Pressure Seal)
+            import re
+            if "hydraulic seal" in cypher_text.lower():
+                cypher_text = re.sub(
+                    r"toLower\((c[0-9]?\.name)\)\s*CONTAINS\s*toLower\(['\"]Hydraulic Seal['\"]\)",
+                    r"(toLower(\1) CONTAINS toLower('Hydraulic') AND toLower(\1) CONTAINS toLower('Seal'))",
+                    cypher_text,
+                    flags=re.IGNORECASE,
+                )
+            if "servo motor" in cypher_text.lower():
+                cypher_text = re.sub(
+                    r"toLower\((c[0-9]?\.name)\)\s*CONTAINS\s*toLower\(['\"]Servo Motor['\"]\)",
+                    r"toLower(\1) CONTAINS toLower('Servo')",
+                    cypher_text,
+                    flags=re.IGNORECASE,
+                )
 
             from app.graph.cypher_guardrail import CypherGuardrail
             is_valid, sanitized_cypher, err_msg = CypherGuardrail.validate_and_sanitize(cypher_text)
@@ -208,41 +238,145 @@ EXAMPLE 2 — Defect → Back-trace to Supplier + all Batches
             latency_ms = (time.perf_counter() - start_time) * 1000
 
             entities_dict = {}
+            paths_list: list[GraphPath] = []
+
             if raw_records:
+                def _resolve_relationship_type(type_a: str, type_b: str) -> str:
+                    types = {type_a, type_b}
+                    if "Supplier" in types and "Batch" in types:
+                        return "SUPPLIED_BATCH"
+                    if "Batch" in types and "Component" in types:
+                        return "MANUFACTURED_AS"
+                    if "Component" in types and "Machine" in types:
+                        return "INSTALLED_ON"
+                    if "Machine" in types and "Maintenance" in types:
+                        return "UNDERWENT"
+                    if "Maintenance" in types and "Vendor" in types:
+                        return "PERFORMED_BY"
+                    if "Incident" in types and "Maintenance" in types:
+                        return "TRIGGERED_MAINTENANCE"
+                    if "Incident" in types and "Defect" in types:
+                        return "REPORTED_AS"
+                    if "Defect" in types and "Component" in types:
+                        return "AFFECTED_COMPONENT"
+                    if "Defect" in types and "Batch" in types:
+                        return "CAUSED_BY_BATCH"
+                    if "Incident" in types and "Machine" in types:
+                        return "TRIGGERED_MAINTENANCE"
+                    if "Defect" in types and "Machine" in types:
+                        return "CAUSED_BY_BATCH"
+                    if "Vendor" in types:
+                        return "PERFORMED_BY"
+                    if "Supplier" in types:
+                        return "SUPPLIED_BATCH"
+                    if "Defect" in types:
+                        return "REPORTED_AS"
+                    if "Incident" in types:
+                        return "TRIGGERED_MAINTENANCE"
+                    if "Maintenance" in types:
+                        return "UNDERWENT"
+                    if "Batch" in types and "Machine" in types:
+                        return "INSTALLED_ON"
+                    if "Machine" in types:
+                        return "INSTALLED_ON"
+                    if "Batch" in types:
+                        return "MANUFACTURED_AS"
+                    return "SUPPLIED_BATCH"
+
                 for rec in raw_records:
                     if isinstance(rec, dict):
+                        record_entities: list[Entity] = []
                         for key, val in rec.items():
                             if isinstance(val, dict):
                                 e_id = val.get("id") or val.get("name")
-                                if e_id and str(e_id) not in entities_dict:
+                                if e_id:
                                     raw_type = val.get("type", "")
                                     s_id = str(e_id).upper()
                                     e_type = raw_type if raw_type else (
                                         "Supplier" if "SUP_" in s_id or "SHAKTI" in s_id or "BHARAT" in s_id or "WESTERN" in s_id
                                         else "Batch" if "BAT_" in s_id or "BATCH" in s_id
-                                        else "Machine" if "MACH_" in s_id or "RW101" in s_id or "HP201" in s_id
-                                        else "Component" if "COMP_" in s_id or "SEAL" in s_id or "MOTOR" in s_id
-                                        else "Defect" if "DEF_" in s_id or "LEAK" in s_id
                                         else "Maintenance" if "MNT_" in s_id or "MAINT" in s_id
-                                        else "Vendor" if "VEN_" in s_id or "APEX" in s_id
-                                        else "Incident" if "INC_" in s_id
+                                        else "Incident" if "INC_" in s_id or "INCIDENT" in s_id
+                                        else "Defect" if "DEF_" in s_id or "DEFECT" in s_id or "LEAK" in s_id
+                                        else "Vendor" if "VEN_" in s_id or "VENDOR" in s_id or "APEX" in s_id
+                                        else "Component" if "COMP_" in s_id or "COMPONENT" in s_id or "SEAL" in s_id or "MOTOR" in s_id
+                                        else "Machine" if "MACH_" in s_id or "RW101" in s_id or "HP201" in s_id or "CELL" in s_id
                                         else "Entity"
                                     )
                                     e_name = val.get("name") or str(e_id)
-                                    entities_dict[str(e_id)] = Entity(id=str(e_id), type=e_type, name=str(e_name), properties=val)
+                                    entity_obj = Entity(id=str(e_id), type=e_type, name=str(e_name), properties=val)
+                                    if str(e_id) not in entities_dict:
+                                        entities_dict[str(e_id)] = entity_obj
+                                    record_entities.append(entity_obj)
+
+                        # Build clean canonical paths from record_entities
+                        by_type_dict = {e.type: e for e in record_entities}
+
+                        sup_e = by_type_dict.get("Supplier")
+                        bat_e = by_type_dict.get("Batch")
+                        cmp_e = by_type_dict.get("Component")
+                        mac_e = by_type_dict.get("Machine")
+                        mnt_e = by_type_dict.get("Maintenance")
+                        ven_e = by_type_dict.get("Vendor")
+                        inc_e = by_type_dict.get("Incident")
+                        def_es = [e for e in record_entities if e.type == "Defect"]
+
+                        base_chain = [e for e in [sup_e, bat_e, cmp_e, mac_e, mnt_e] if e is not None]
+
+                        if len(base_chain) >= 2:
+                            # 1. Maintenance -> Vendor branch
+                            if ven_e and mnt_e:
+                                v_nodes = base_chain + [ven_e]
+                                v_rels = [
+                                    _resolve_relationship_type(v_nodes[i].type, v_nodes[i + 1].type)
+                                    for i in range(len(v_nodes) - 1)
+                                ]
+                                paths_list.append(GraphPath(nodes=v_nodes, relationships=v_rels))
+
+                            # 2. Maintenance -> Incident -> Defect branch
+                            if inc_e and mnt_e:
+                                if def_es:
+                                    for d_e in def_es:
+                                        d_nodes = base_chain + [inc_e, d_e]
+                                        d_rels = [
+                                            _resolve_relationship_type(d_nodes[i].type, d_nodes[i + 1].type)
+                                            for i in range(len(d_nodes) - 1)
+                                        ]
+                                        paths_list.append(GraphPath(nodes=d_nodes, relationships=d_rels))
+                                else:
+                                    i_nodes = base_chain + [inc_e]
+                                    i_rels = [
+                                        _resolve_relationship_type(i_nodes[i].type, i_nodes[i + 1].type)
+                                        for i in range(len(i_nodes) - 1)
+                                    ]
+                                    paths_list.append(GraphPath(nodes=i_nodes, relationships=i_rels))
+                        elif len(record_entities) >= 2:
+                            # Fallback topological rank ordering if full base chain is not present
+                            rank_map = {
+                                "Supplier": 1, "Batch": 2, "Component": 3, "Machine": 4,
+                                "Maintenance": 5, "Vendor": 6, "Incident": 7, "Defect": 8
+                            }
+                            sorted_ents = sorted(record_entities, key=lambda e: rank_map.get(e.type, 99))
+                            rels = [
+                                _resolve_relationship_type(sorted_ents[i].type, sorted_ents[i + 1].type)
+                                for i in range(len(sorted_ents) - 1)
+                            ]
+                            paths_list.append(GraphPath(nodes=sorted_ents, relationships=rels))
 
             entities = list(entities_dict.values())
+            hops = max(1, len(paths_list[0].nodes) - 1) if paths_list else 1
 
             return GraphResult(
                 query=query,
                 result_type=GraphResultType.LINEAGE,
                 operation=GraphOperation.TRAVERSAL,
                 entities=entities,
+                paths=paths_list,
                 cypher_used=cypher_text,
                 t2c_thought=t2c_thought,
                 intent="text2cypher",
                 latency_ms=latency_ms,
-                depth_hops=1,
+                depth_hops=hops,
             )
 
         except Exception as exc:

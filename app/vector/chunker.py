@@ -1,7 +1,7 @@
 """
-TextChunker — splits documents into overlapping chunks for vector ingestion.
+TextChunker — splits documents into overlapping chunks for vector ingestion using LangChain.
 
-Strategy: character-based splitting with token awareness via tiktoken.
+Strategy: character-based splitting with token awareness via tiktoken & LangChain Text Splitter.
 """
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import tiktoken
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from settings import settings
 
@@ -40,7 +41,7 @@ def chunk_text(
     overlap: int | None = None,
 ) -> list[Chunk]:
     """
-    Split text into overlapping chunks.
+    Split text into overlapping chunks using LangChain's RecursiveCharacterTextSplitter.
 
     Args:
         text: Raw document text.
@@ -54,28 +55,29 @@ def chunk_text(
     size = chunk_size or settings.chunk_size
     ovlp = overlap or settings.chunk_overlap
 
-    tokens = _ENCODING.encode(text)
+    splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        encoding_name="cl100k_base",
+        chunk_size=size,
+        chunk_overlap=ovlp,
+    )
+
+    split_texts = splitter.split_text(text)
     chunks: list[Chunk] = []
-    start = 0
-    idx = 0
 
-    while start < len(tokens):
-        end = min(start + size, len(tokens))
-        chunk_tokens = tokens[start:end]
-        chunk_text_str = _ENCODING.decode(chunk_tokens)
-
+    for idx, content in enumerate(split_texts):
+        cleaned_content = content.strip()
+        if not cleaned_content:
+            continue
+        token_count = _count_tokens(cleaned_content)
         chunks.append(
             Chunk(
                 chunk_id=f"{source}::chunk_{idx}",
                 source=source,
-                content=chunk_text_str.strip(),
-                token_count=len(chunk_tokens),
+                content=cleaned_content,
+                token_count=token_count,
                 chunk_index=idx,
             )
         )
-        idx += 1
-        # Advance by (size - overlap)
-        start += max(1, size - ovlp)
 
     logger.debug("Chunked '%s' → %d chunks", source, len(chunks))
     return chunks

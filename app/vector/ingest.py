@@ -1,5 +1,5 @@
 """
-VectorIngestor — chunks documents, embeds them, and upserts into FAISSVectorStore.
+VectorIngestor — chunks documents, embeds them, and upserts into FAISSVectorStore via LangChain.
 Idempotent: same chunk_id overwrites previous entry.
 """
 from __future__ import annotations
@@ -16,23 +16,22 @@ from settings import settings
 logger = logging.getLogger(__name__)
 
 DOCUMENTS_DIR = Path(__file__).parents[2] / "data" / "documents"
-print("DOCUMENTS_DIR:", DOCUMENTS_DIR)
 EMBEDDING_DIM = 1536  # text-embedding-3-small dimension
 
 
 def _get_store() -> FAISSVectorStore:
     """Return (or load) the persistent FAISS vector store."""
     return FAISSVectorStore(
-        persist_dir=settings.vector_dir_path,  # reusing the same path setting
+        persist_dir=settings.vector_dir_path,
         dimension=EMBEDDING_DIM,
     )
 
 
 async def ingest(documents_dir: Path | None = None) -> int:
     """
-    Full ingestion pipeline:
-    1. Chunk all .txt documents
-    2. Embed chunks via OpenAI
+    Full ingestion pipeline using LangChain pipeline components:
+    1. Load & chunk all .txt documents
+    2. Embed chunks via LangChain OpenAIEmbeddings
     3. Upsert into FAISSVectorStore
 
     Returns: number of chunks upserted.

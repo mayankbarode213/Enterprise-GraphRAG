@@ -73,5 +73,32 @@ class CypherGuardrail:
                 count=1
             )
 
+        # 5. Sanitize invalid schema relationship hallucinations:
+        # e.g., Vendor SUPPLIED_BATCH -> Supplier SUPPLIED_BATCH
+        if re.search(r"\(v(?::Vendor)?\)\s*-\s*\[:SUPPLIED_BATCH\]", clean_cypher, re.IGNORECASE):
+            logger.info("CypherGuardrail: Fixing hallucinated (v:Vendor)-[:SUPPLIED_BATCH] to (s:Supplier)-[:SUPPLIED_BATCH].")
+            clean_cypher = re.sub(
+                r"\(v(?::Vendor)?\)\s*-\s*\[:SUPPLIED_BATCH\]",
+                "(s:Supplier)-[:SUPPLIED_BATCH]",
+                clean_cypher,
+                flags=re.IGNORECASE
+            )
+
+        # 6. Fix hallucinated date inversion (e.g. i.date > mt.date) that rejects all valid rows:
+        if re.search(r"[\w\.]*date\s*>\s*[\w\.]*date", clean_cypher, re.IGNORECASE):
+            logger.info("CypherGuardrail: Stripping hallucinated inverted date comparison filter.")
+            clean_cypher = re.sub(
+                r"\s*AND\s+[\w\.]*date\s*>\s*[\w\.]*date",
+                "",
+                clean_cypher,
+                flags=re.IGNORECASE
+            )
+            clean_cypher = re.sub(
+                r"WHERE\s+[\w\.]*date\s*>\s*[\w\.]*date\s+AND\s+",
+                "WHERE ",
+                clean_cypher,
+                flags=re.IGNORECASE
+            )
+
         logger.info("CypherGuardrail PASSED cleanly.")
         return True, clean_cypher, ""

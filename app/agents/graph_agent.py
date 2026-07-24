@@ -29,6 +29,18 @@ class GraphAgent:
         result = await self._service.query(query, use_text2cypher=use_text2cypher)
         latency_ms = (time.perf_counter() - t0) * 1000
 
+        # Print detailed GraphPath objects to terminal for inspection
+        print("\n" + "=" * 70)
+        print(f"📊 [GRAPH RETRIEVAL RESULTS] Found {len(result.paths)} GraphPath(s) | {len(result.entities)} Entity(ies)")
+        print("=" * 70)
+        for idx, path in enumerate(result.paths, 1):
+            nodes_fmt = " ──▶ ".join(f"{n.name} [{n.type}]" for n in path.nodes)
+            rels_fmt = ", ".join(path.relationships)
+            print(f"  Path #{idx} (length={path.path_length}):")
+            print(f"    Nodes        : {nodes_fmt}")
+            print(f"    Relationships: [{rels_fmt}]")
+        print("=" * 70 + "\n")
+
         is_summary = getattr(result, "result_type", None) == GraphResultType.SUMMARY
         action_name = "graph_aggregate" if is_summary else "graph_retrieve"
 

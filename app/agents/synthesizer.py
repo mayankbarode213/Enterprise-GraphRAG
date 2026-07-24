@@ -117,6 +117,7 @@ class SynthesizerAgent:
                 "batch_lineage": "Batch Traceability",
                 "component_trace": "Component Traceability",
                 "supplier_risk_exposure": "Supplier Risk Exposure Assessment",
+                "text2cypher": "Root Cause Lineage",
             }
             format_title = title_mapping.get(intent_value, "Root Cause Lineage")
 
@@ -140,12 +141,16 @@ class SynthesizerAgent:
         context = self._build_context(tool_used, graph_result, vector_result)
 
         if tool_used == "graph":
-            if intent_value == "supplier_risk_exposure":
+            query_lower = query.lower()
+            if intent_value == "supplier_risk_exposure" or ("risk" in query_lower and "exposure" in query_lower):
                 system_prompt = SYNTHESIS_RISK_EXPOSURE_PROMPT.format(
                     tool_used=tool_used.upper(),
                     format_title=format_title,
                 )
-            elif intent_value in ["supplier_lineage", "defect_lineage", "supplier_batch_to_defect"]:
+            elif (
+                intent_value in ["supplier_lineage", "defect_lineage", "supplier_batch_to_defect", "text2cypher"]
+                or (graph_result and graph_result.paths)
+            ):
                 system_prompt = SYNTHESIS_LINEAGE_PROMPT.format(
                     tool_used=tool_used.upper(),
                     format_title=format_title,
@@ -307,7 +312,7 @@ class SynthesizerAgent:
             # Shown when there are multiple paths or a large entity set, so the
             # LLM can produce a structured summary rather than a path repetition.
             entities = graph_result.entities or []
-            if entities and (len(graph_result.paths) > 1 or len(entities) > 5):
+            if entities:
                 from collections import defaultdict
 
                 by_type: dict[str, list[str]] = defaultdict(list)

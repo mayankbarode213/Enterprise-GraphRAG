@@ -5,7 +5,7 @@ Implementation: in-memory dict (hash → response).
 Production path: Replace the dict with Redis using semantic similarity lookup
 (embed prompt → cosine search over cached embeddings → return if score > threshold).
 
-This stub demonstrates the architecture and is presentable in interviews.
+This stub demonstrates the architecture
 """
 from __future__ import annotations
 

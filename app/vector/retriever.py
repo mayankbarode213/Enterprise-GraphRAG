@@ -1,5 +1,5 @@
 """
-VectorRetriever — similarity search over FAISSVectorStore + LLM synthesis.
+VectorRetriever — similarity search over FAISSVectorStore + LLM synthesis using LangChain.
 
 Intentionally limited to semantic similarity — this is what fails
 on the canonical multi-hop breaking-point query.
@@ -9,21 +9,34 @@ from __future__ import annotations
 import logging
 import time
 
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
+from app.schemas.models import Citation, VectorResult
 from app.vector.embedding import EmbeddingService
 from app.vector.store import FAISSVectorStore
-from app.schemas.models import Citation, VectorResult
 from settings import settings
 
 logger = logging.getLogger(__name__)
 
 EMBEDDING_DIM = 1536  # text-embedding-3-small
 
+_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "Answer the following question using ONLY the provided context. "
+            "If the context does not contain enough information to fully answer the question, "
+            "say so explicitly — do not guess or hallucinate.",
+        ),
+        ("user", "Context:\n{context}\n\nQuestion: {query}"),
+    ]
+)
+
 
 class VectorRetriever:
     """
-    Async retriever: embed query → FAISS similarity search → LLM synthesis.
+    Async retriever: embed query → FAISS similarity search → LLM synthesis via LangChain LCEL.
     """
 
     def __init__(self) -> None:
@@ -40,7 +53,7 @@ class VectorRetriever:
 
     async def retrieve(self, query: str, k: int | None = None) -> VectorResult:
         """
-        Embed query → top-k similarity search → LLM answer synthesis.
+        Embed query → top-k similarity search → LLM answer synthesis using LangChain.
 
         Args:
             query: User's natural language question.
@@ -96,20 +109,13 @@ class VectorRetriever:
                 latency_ms=round((time.perf_counter() - t0) * 1000, 2),
             )
 
-        # Step 4: LLM synthesis from retrieved chunks
+        # Step 4: LLM synthesis from retrieved chunks using LCEL
         context = "\n\n---\n\n".join(
             f"[Source: {c.source}]\n{c.content}" for c in citations
         )
-        prompt = (
-            f"Answer the following question using ONLY the provided context. "
-            f"If the context does not contain enough information to fully answer the question, "
-            f"say so explicitly — do not guess or hallucinate.\n\n"
-            f"Context:\n{context}\n\n"
-            f"Question: {query}\n\n"
-            f"Answer:"
-        )
 
-        llm_response = await self._llm.ainvoke(prompt)
+        messages = _PROMPT_TEMPLATE.format_messages(context=context, query=query)
+        llm_response = await self._llm.ainvoke(messages)
         answer_text = str(llm_response.content).strip()
         total_latency = (time.perf_counter() - t0) * 1000
 

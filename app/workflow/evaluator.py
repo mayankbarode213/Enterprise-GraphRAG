@@ -18,7 +18,7 @@ CRITICAL EVALUATION PRINCIPLES:
 1. **Query Fulfillment & Accuracy First**: The PRIMARY factor for winning is whether the system ACCURATELY and DIRECTLY answered the user's specific core question (e.g., if the user asks for a DATE, document finding, or specific attribute, the system that actually provides the exact date/fact wins over a system that claims 'no records found' or provides unrequested structural data).
 2. **Correct Tool Choice**:
    - **VectorRAG** is the correct tool for: unstructured text findings, single-entity attribute lookups from free-text documents, or queries where the answer lies in narrative document chunks rather than graph relationships.
-   - **GraphRAG** is the correct tool for: multi-hop relational dependency tracing, supplier-to-defect lineage, component-to-machine hierarchy, operational path traversals, AND **complete machine operational history queries** (e.g., "show maintenance history of Machine X including vendors, incidents, and defects"). Machine history queries inherently require traversing Machine→Maintenance→Vendor AND Machine→Maintenance←Incident→Defect — this is ALWAYS a multi-hop graph query regardless of whether the answer includes dates.
+   - **GraphRAG** is the correct tool for: multi-hop relational dependency tracing, supplier-to-defect lineage, component-to-machine hierarchy, operational path traversals, AND **complete machine operational history queries** (e.g., "show maintenance history of Machine X including vendors, incidents, and defects"). Machine history queries inherently require traversing Machine→Maintenance→Vendor AND Machine→Maintenance←Incident→Defect — this is ALWAYS a multi-hop graph query.
    - **DO NOT** assume VectorRAG wins simply because the query mentions dates or incident logs. If the query asks for a COMPLETE HISTORY of a named machine including multiple entity types (vendors, incidents, defects), that is a multi-hop graph traversal and GraphRAG is the correct tool.
 3. **Scoring Answer Completeness (1-10)**:
    - A system that fails to answer the requested metric/date MUST receive a LOW completeness score (1-4).
@@ -77,12 +77,12 @@ class RAGEvaluator:
         """
         user_message = f"""Query: {query}
 
---- GraphRAG Answer ---
-{graph_answer}
+                        --- GraphRAG Answer ---
+                        {graph_answer}
 
---- VectorRAG Answer ---
-{vector_answer}
-"""
+                        --- VectorRAG Answer ---
+                        {vector_answer}
+                        """
         try:
             response = await self._llm.ainvoke(
                 [
